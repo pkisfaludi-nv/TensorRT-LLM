@@ -30,6 +30,7 @@ if TYPE_CHECKING:
     from ..mapping import VisualGenMapping
 
 from tensorrt_llm._torch.distributed import all_to_all_4d, all_to_all_5d
+from tensorrt_llm.logger import logger
 
 from ...attention_backend.interface import PredefinedAttentionMask
 from .interface import AttentionBackend, AttentionTensorLayout
@@ -93,8 +94,8 @@ class UlyssesAttention(AttentionBackend):
                     # Max elements: conservative upper bound of a single QKV slice
                     max_elems = 4096 * self.num_heads * self.head_dim
                     self._ub_a2a = UBAllToAll(max_elems, dtype=torch.bfloat16)
-            except Exception:
-                pass  # UB not available; fall through to NCCL
+            except Exception as exc:
+                logger.debug(f"UBAllToAll unavailable, falling back to NCCL: {exc}")
 
     def forward(
         self,
@@ -548,8 +549,8 @@ class RingAttention(AttentionBackend):
                     self._ub_allocate = ub_allocate
                     self._ub_send_fn = userbuffers_send
                     self._ub_recv_fn = userbuffers_recv
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug(f"UB P2P unavailable, falling back to NCCL: {exc}")
 
         # NIXL P2P for Ring — used when TRTLLM_RING_TRANSPORT=nixl, or auto with no UB
         self._nixl_ready = False
@@ -656,7 +657,8 @@ class RingAttention(AttentionBackend):
             self._nixl_prev_agent_name = f"ring_rank_{prev_global_rank}"
             self._nixl_agent.load_remote_agent(self._nixl_prev_agent_name, prev_desc)
             self._nixl_ready = True
-        except Exception:
+        except Exception as exc:
+            logger.debug(f"NIXL ring init failed, falling back to NCCL/UB: {exc}")
             self._nixl_agent = None
 
     def _nixl_register_kv_bufs(self) -> None:

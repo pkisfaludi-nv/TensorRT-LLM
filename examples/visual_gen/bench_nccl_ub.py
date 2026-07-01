@@ -223,7 +223,7 @@ def _bench_ring_p2p_nixl(group: dist.ProcessGroup, world_size: int,
     desc_len = torch.tensor([len(local_desc)], dtype=torch.int64, device=device)
     all_lens = [torch.zeros(1, dtype=torch.int64, device=device) for _ in range(world_size)]
     dist.all_gather(all_lens, desc_len, group=group)
-    max_len = int(max(int(l.item()) for l in all_lens))
+    max_len = int(max(int(tl.item()) for tl in all_lens))
     padded = torch.zeros(max_len, dtype=torch.uint8, device=device)
     padded[: len(local_desc)] = desc_t
     all_descs = [torch.zeros(max_len, dtype=torch.uint8, device=device) for _ in range(world_size)]
